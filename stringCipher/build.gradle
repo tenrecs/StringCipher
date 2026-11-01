@@ -1,0 +1,81 @@
+apply plugin: 'groovy'
+apply plugin: 'maven-publish'
+apply plugin: 'signing'
+
+group = 'io.github.tenrecs'
+version = '1.0.0'
+
+repositories {
+    google()
+    mavenCentral()
+}
+
+dependencies {
+    implementation gradleApi()
+    implementation localGroovy()
+    compileOnly 'com.android.tools.build:gradle:7.2.2'
+}
+
+processResources {
+    from('src/runtime/java') { into 'runtime-source' }
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+    withSourcesJar()
+    withJavadocJar()
+}
+
+publishing {
+    publications {
+        stringCipherPlugin(MavenPublication) {
+            from components.java
+            artifactId = 'stringcipher'
+            pom {
+                name = 'StringCipher Gradle Plugin'
+                description = 'Android Gradle plugin for obfuscating string constants in application classes.'
+                url = findProperty('projectUrl') ?: ''
+                licenses {
+                    license {
+                        name = findProperty('licenseName') ?: ''
+                        url = findProperty('licenseUrl') ?: ''
+                    }
+                }
+                developers {
+                    developer {
+                        id = findProperty('developerId') ?: 'tenrecs'
+                        name = findProperty('developerName') ?: ''
+                        email = findProperty('developerEmail') ?: ''
+                    }
+                }
+                scm {
+                    connection = findProperty('scmConnection') ?: ''
+                    developerConnection = findProperty('scmDeveloperConnection') ?: ''
+                    url = findProperty('scmUrl') ?: ''
+                }
+            }
+        }
+    }
+    repositories {
+        maven {
+            name = 'release'
+            url = layout.buildDirectory.dir('staging-repository')
+        }
+    }
+}
+
+signing {
+    if (findProperty('signingKeyFile') && findProperty('signingPassword')) {
+        useInMemoryPgpKeys(file(findProperty('signingKeyFile')).getText('UTF-8'), findProperty('signingPassword'))
+        sign publishing.publications.stringCipherPlugin
+    }
+}
+
+tasks.matching { it.name == 'publishStringCipherPluginPublicationToReleaseRepository' }.configureEach {
+    doFirst {
+        def required = ['projectUrl', 'scmUrl', 'scmConnection', 'scmDeveloperConnection', 'licenseName', 'licenseUrl', 'developerId', 'developerName', 'developerEmail', 'signingKeyFile', 'signingPassword']
+        def missing = required.findAll { !findProperty(it) }
+        if (!missing.isEmpty()) throw new GradleException('Missing publication properties: ' + missing.join(', '))
+    }
+}
